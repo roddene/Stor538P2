@@ -1,0 +1,155 @@
+---
+title: "Stor538p2"
+author: "Elliott Rodden"
+date: "10/29/2021"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+#read in all data frames from the github repo except offense/defense stats.
+
+knitr::opts_chunk$set(echo = TRUE)
+library(dplyr)
+library(leaps)
+library(MASS)
+library(corrr)
+
+
+game_results = read.csv("https://raw.githubusercontent.com/mattymo18/STOR-538-P2-2021-Spring/master/Source_Data/game_results.csv")
+
+stadiums = read.csv("https://raw.githubusercontent.com/mattymo18/STOR-538-P2-2021-Spring/master/Source_Data/nfl_stadiums.csv")
+
+teams = read.csv("https://raw.githubusercontent.com/mattymo18/STOR-538-P2-2021-Spring/master/Source_Data/nfl_teams.csv")
+
+
+
+
+```
+
+```{r}
+
+totaloff = data.frame()
+totaldef = data.frame()
+
+#read in offense and defense stats for years 2000 to 2021
+for (i in 2000:2021){
+  #read in offense for i year
+  curoff = read.csv(paste(c("https://raw.githubusercontent.com/mattymo18/STOR-538-P2-2021-Spring/master/Source_Data/Offensive-Stats/P2.",i,".Off.Stats.csv"),collapse = ""))
+  
+newval = curoff %>% slice(1:2) 
+
+newval = data.frame(lapply(newval, as.character), stringsAsFactors=FALSE)
+
+  
+  newval=rbind(newval, row3 = apply(newval, 2, paste0, collapse = " "))
+  curoff = tail(curoff, -2)
+  colnames(curoff)<- newval %>%slice(3:3)
+  curoff = curoff[-1]
+  curoff$Year = i
+  totaloff = merge(totaloff,curoff,all= TRUE)#combine current dataframe to existing dataframe.
+  
+  #read in defense for i year
+  curdef = read.csv(paste(c("https://raw.githubusercontent.com/mattymo18/STOR-538-P2-2021-Spring/master/Source_Data/Defensive-Stats/P2.",i,".Def.Stats.csv"),collapse = ""))
+
+  newval = curdef %>% slice(1:2) 
+
+newval = data.frame(lapply(newval, as.character), stringsAsFactors=FALSE)
+
+
+  newval=rbind(newval, row3 = apply(newval, 2, paste0, collapse = " "))
+  curdef = tail(curdef, -2)
+  colnames(curdef)<- newval %>%slice(3:3)
+  curdef = curdef[-1]
+  curdef$Year = i
+  totaldef = merge(totaldef,curdef,all= TRUE)
+  
+  
+}
+
+totaloff = totaloff[1:(length(totaloff)-4)]
+colnames(totaloff) <-paste("Offense",colnames(totaloff),sep=" ")
+colnames(totaldef) <-paste("Defense",colnames(totaldef),sep=" ")
+colnames(totaloff)[2] <- "Team"
+colnames(totaldef)[2] <- "Team"
+colnames(totaloff)[29] <- "Year"
+colnames(totaldef)[29] <- "Year"
+total = merge(totaloff,totaldef,by = c("Year","Team"))
+
+```
+
+
+```{r}
+colnames(game_results)[2] = "Year"
+
+totaloffhome = totaloff %>% rename_with( ~ paste0("Home ", .x))
+totaloffaway = totaloff %>% rename_with( ~ paste0("Away ", .x))
+totaldefhome = totaldef %>% rename_with( ~ paste0("Home ", .x))
+totaldefaway = totaldef %>% rename_with( ~ paste0("Away ", .x))
+
+newresults = merge(game_results,totaloffhome,by.x = c("team_home","Year"),by.y = c("Home Team","Home Year"))
+newresults = merge(newresults,totaldefhome,by.x = c("team_home","Year"),by.y = c("Home Team","Home Year"))
+newresults = merge(newresults,totaloffaway,by.x = c("team_away","Year"),by.y = c("Away Team","Away Year"))
+newresults = merge(newresults,totaldefaway,by.x = c("team_away","Year"),by.y = c("Away Team","Away Year"))
+final_results = newresults[-c(18)]
+```
+
+
+
+
+```{r}
+#model for home score
+predictor_subset = as.data.frame(sapply(final_results[c(7,8,18:125)],as.numeric))
+predictor_subset = predictor_subset[-c(31,58,85)]
+
+
+
+
+homescore = lm(score_home~.,data = predictor_subset[-c(2,4)])
+
+summary(homescore)
+
+
+#model for away score
+
+awayscore = lm(score_away~.,data = predictor_subset[-c(1,4)])
+
+summary(awayscore)
+
+```
+Note that the `echo = FALSE` parameter was added to the code chunk to prevent printing of the R code that generated the plot.
+
+
+
+```{r}
+#check for multicolinearity
+bestcorr = predictor_subset %>% cor() %>% as_cordf() %>% stretch() %>% arrange(r)
+bestcorr = bestcorr[nrow(bestcorr):1,]
+bestcorr[complete.cases(bestcorr),]
+
+```
+
+```{r}
+
+predictor_subset = predictor_subset[-c(29,55,81,107)]
+
+bestcorr = predictor_subset %>% cor() %>% as_cordf() %>% stretch() %>% arrange(r)
+bestcorr = bestcorr[nrow(bestcorr):1,]
+bestcorr[complete.cases(bestcorr),]
+
+
+```
+
+```{r}
+
+
+homescore_empty = lm(score_home~1,data = predictor_subset[-c(2,4)])
+homescore_all = lm(score_home~.,data = predictor_subset[-c(2,4)])
+
+
+homescore_model = stepAIC(homescore,trace=FALSE,direction = "forward",scope=list(lower = homescore_empty, upper = homescore_all))
+
+summary(homescore_model)
+#need to do vif,heteroskedasticity 
+```
+
+
