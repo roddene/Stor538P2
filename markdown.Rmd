@@ -13,6 +13,7 @@ library(dplyr)
 library(leaps)
 library(MASS)
 library(corrr)
+library(tidyr)
 
 
 game_results = read.csv("https://raw.githubusercontent.com/mattymo18/STOR-538-P2-2021-Spring/master/Source_Data/game_results.csv")
@@ -81,6 +82,42 @@ total = merge(totaloff,totaldef,by = c("Year","Team"))
 ```{r}
 colnames(game_results)[2] = "Year"
 
+
+defense_red_zone = read.csv("https://raw.githubusercontent.com/roddene/Stor538P2/master/Red%20Zone%20Chances%20Per%20Team%20-%20Defensive%20Red%20Zone%20Chances%20Per%20Game.csv")
+
+defense_red_zone = defense_red_zone%>% gather("Year","Defense Red Zone Chances",2:20) 
+defense_red_zone$Year = substring(defense_red_zone$Year,2)
+defense_red_zone$Year = as.numeric(defense_red_zone$Year)
+
+totaldef = merge(totaldef,defense_red_zone)
+
+
+offense_red_zone = read.csv("https://raw.githubusercontent.com/roddene/Stor538P2/master/Red%20Zone%20Chances%20Per%20Team%20-%20Offensive%20Red%20Zone%20Chances%20Per%20Game.csv")
+
+offense_red_zone = offense_red_zone%>% gather("Year","Offense Red Zone Chances",2:20) 
+offense_red_zone$Year = substring(offense_red_zone$Year,2)
+offense_red_zone$Year = as.numeric(offense_red_zone$Year)
+
+
+totaloff = merge(totaloff,offense_red_zone)
+
+time_of_possession = read.csv("https://raw.githubusercontent.com/roddene/Stor538P2/master/Red%20Zone%20Chances%20Per%20Team%20-%20Time%20of%20Posession.csv")
+time_of_possession = time_of_possession %>% gather("Year","Time of Possession",2:20)
+time_of_possession$Year = substring(time_of_possession$Year,2)
+time_of_possession$Year = as.numeric(time_of_possession$Year)
+totaloff = merge(totaloff,time_of_possession)
+
+
+```
+
+
+
+```{r}
+
+
+
+
+
 totaloffhome = totaloff %>% rename_with( ~ paste0("Home ", .x))
 totaloffaway = totaloff %>% rename_with( ~ paste0("Away ", .x))
 totaldefhome = totaldef %>% rename_with( ~ paste0("Home ", .x))
@@ -95,11 +132,29 @@ final_results = newresults[-c(18)]
 
 
 
+```{r}
+
+p1 = final_results %>% mutate(`Home Defense PPG` = `Home Defense  PF`/ `Home Defense  G`) %>%
+  mutate(`Away Defense PPG` = `Away Defense  PF` / `Away Defense  G`)
+
+# read in created data
+
+
+
+#final_results = final_results[-c(46,73,100)]
+
+#final_results = merge(final_results,offense_red_zone,by,x = "")
+
+
+```
 
 ```{r}
+
+
 #model for home score
-predictor_subset = as.data.frame(sapply(final_results[c(7,8,18:125)],as.numeric))
-predictor_subset = predictor_subset[-c(31,58,85)]
+predictor_subset = as.data.frame(sapply(final_results[c(7,8,18:122)],as.numeric))
+
+
 
 
 
@@ -149,7 +204,15 @@ homescore_all = lm(score_home~.,data = predictor_subset[-c(2,4)])
 homescore_model = stepAIC(homescore,trace=FALSE,direction = "forward",scope=list(lower = homescore_empty, upper = homescore_all))
 
 summary(homescore_model)
-#need to do vif,heteroskedasticity 
+#need to do vif,heteroskedasticity,add some categorical variables,add new varaibles
 ```
+
+```{r}
+
+
+
+
+```
+
 
 
