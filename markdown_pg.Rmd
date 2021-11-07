@@ -1,0 +1,364 @@
+---
+title: "Stor538p2"
+author: "Elliott Rodden"
+date: "10/29/2021"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+#read in all data frames from the github repo except offense/defense stats.
+
+knitr::opts_chunk$set(echo = TRUE)
+library(dplyr)
+library(leaps)
+library(MASS)
+library(corrr)
+library(tidyr)
+
+
+game_results = read.csv("https://raw.githubusercontent.com/mattymo18/STOR-538-P2-2021-Spring/master/Source_Data/game_results.csv")
+
+stadiums = read.csv("https://raw.githubusercontent.com/mattymo18/STOR-538-P2-2021-Spring/master/Source_Data/nfl_stadiums.csv")
+
+teams = read.csv("https://raw.githubusercontent.com/mattymo18/STOR-538-P2-2021-Spring/master/Source_Data/nfl_teams.csv")
+
+
+
+
+```
+
+```{r}
+
+totaloff = data.frame()
+totaldef = data.frame()
+
+#read in offense and defense stats for years 2000 to 2021
+for (i in 2000:2021){
+  #read in offense for i year
+  curoff = read.csv(paste(c("https://raw.githubusercontent.com/mattymo18/STOR-538-P2-2021-Spring/master/Source_Data/Offensive-Stats/P2.",i,".Off.Stats.csv"),collapse = ""))
+  
+newval = curoff %>% slice(1:2) 
+
+newval = data.frame(lapply(newval, as.character), stringsAsFactors=FALSE)
+
+  
+  newval=rbind(newval, row3 = apply(newval, 2, paste0, collapse = " "))
+  curoff = tail(curoff, -2)
+  colnames(curoff)<- newval %>%slice(3:3)
+  curoff = curoff[-1]
+  curoff$Year = i
+  totaloff = merge(totaloff,curoff,all= TRUE)#combine current dataframe to existing dataframe.
+  
+  #read in defense for i year
+  curdef = read.csv(paste(c("https://raw.githubusercontent.com/mattymo18/STOR-538-P2-2021-Spring/master/Source_Data/Defensive-Stats/P2.",i,".Def.Stats.csv"),collapse = ""))
+
+  newval = curdef %>% slice(1:2) 
+
+newval = data.frame(lapply(newval, as.character), stringsAsFactors=FALSE)
+
+
+  newval=rbind(newval, row3 = apply(newval, 2, paste0, collapse = " "))
+  curdef = tail(curdef, -2)
+  colnames(curdef)<- newval %>%slice(3:3)
+  curdef = curdef[-1]
+  curdef$Year = i
+  totaldef = merge(totaldef,curdef,all= TRUE)
+  
+  
+}
+
+totaloff = totaloff[1:(length(totaloff)-4)]
+colnames(totaloff) <-paste("Offense",colnames(totaloff),sep=" ")
+colnames(totaldef) <-paste("Defense",colnames(totaldef),sep=" ")
+colnames(totaloff)[2] <- "Team"
+colnames(totaldef)[2] <- "Team"
+colnames(totaloff)[29] <- "Year"
+colnames(totaldef)[29] <- "Year"
+total = merge(totaloff,totaldef,by = c("Year","Team"))
+
+```
+
+
+```{r}
+colnames(game_results)[2] = "Year"
+
+
+defense_red_zone = read.csv("https://raw.githubusercontent.com/roddene/Stor538P2/master/Red%20Zone%20Chances%20Per%20Team%20-%20Defensive%20Red%20Zone%20Chances%20Per%20Game.csv")
+
+defense_red_zone = defense_red_zone%>% gather("Year","Defense Red Zone Chances",2:20) 
+defense_red_zone$Year = substring(defense_red_zone$Year,2)
+defense_red_zone$Year = as.numeric(defense_red_zone$Year)
+
+totaldef = merge(totaldef,defense_red_zone)
+
+
+offense_red_zone = read.csv("https://raw.githubusercontent.com/roddene/Stor538P2/master/Red%20Zone%20Chances%20Per%20Team%20-%20Offensive%20Red%20Zone%20Chances%20Per%20Game.csv")
+
+offense_red_zone = offense_red_zone%>% gather("Year","Offense Red Zone Chances",2:20) 
+offense_red_zone$Year = substring(offense_red_zone$Year,2)
+offense_red_zone$Year = as.numeric(offense_red_zone$Year)
+
+
+totaloff = merge(totaloff,offense_red_zone)
+
+time_of_possession = read.csv("https://raw.githubusercontent.com/roddene/Stor538P2/master/Red%20Zone%20Chances%20Per%20Team%20-%20Time%20of%20Posession.csv")
+time_of_possession = time_of_possession %>% gather("Year","Time of Possession",2:20)
+time_of_possession$Year = substring(time_of_possession$Year,2)
+time_of_possession$Year = as.numeric(time_of_possession$Year)
+totaloff = merge(totaloff,time_of_possession)
+
+
+
+
+```
+
+```{r}
+
+totaloff <- as.data.frame(lapply(totaloff, function(col) {
+  if (suppressWarnings(all(!is.na(as.numeric(as.character(col)))))) {
+    as.numeric(as.character(col))
+  } else {
+    col
+  }
+}))
+
+totaldef <- as.data.frame(lapply(totaldef, function(col) {
+  if (suppressWarnings(all(!is.na(as.numeric(as.character(col)))))) {
+    as.numeric(as.character(col))
+  } else {
+    col
+  }
+}))
+
+finaloff = totaloff[c(1:2)]
+finaldef = totaldef[c(1:2)]
+
+finaloff$`Offense.PPG` = totaloff$`Offense..PF`/totaloff$`Offense..G`
+finaldef$`Defense.PPG` = totaldef$`Defense..PF`/totaldef$`Defense..G`
+
+
+finaloff$`Offense.YPG` = totaloff$`Offense..Yds`/totaloff$`Offense..G`
+finaldef$`Defense.YPG` = totaldef$`Defense..Yds`/totaldef$`Defense..G`
+
+
+finaloff$`Offense.PlaysPG` = totaloff$`Offense.Tot.Yds...TO.Ply`/totaloff$`Offense..G`
+finaldef$`Defense.PlaysPG` = totaldef$`Defense.Tot.Yds...TO.Ply`/totaldef$`Defense..G`
+
+finaloff$`Offense.PlaysPG` = totaloff$`Offense.Tot.Yds...TO.Ply`/totaloff$`Offense..G`
+finaldef$`Defense.PlaysPG` = totaldef$`Defense.Tot.Yds...TO.Ply`/totaldef$`Defense..G`
+
+finaloff$Offense.YPP = totaloff$Offense.Tot.Yds...TO.Y.P
+finaldef$Defense.YPP = totaldef$Defense.Tot.Yds...TO.Y.P
+
+finaloff$`Offense.TOFPG` = totaloff$`Offense.Tot.Yds...TO.TO`/totaloff$`Offense..G`
+finaldef$`Defense.TOFPG` = totaldef$`Defense.Tot.Yds...TO.TO`/totaldef$`Defense..G`
+
+finaloff$`Offense.FPG` = totaloff$`Offense..FL`/totaloff$`Offense..G`
+finaldef$`Defense.FPG` = totaldef$`Defense..FL`/totaldef$`Defense..G`
+
+finaloff$`Offense.1stDPG` = totaloff$`Offense..1stD`/totaloff$`Offense..G`
+finaldef$`Defense.1stDPG` = totaldef$`Defense..1stD`/totaldef$`Defense..G`
+
+finaloff$`Offense.CMPPCT` = totaloff$Offense.Passing.Cmp/totaloff$Offense.Passing.Att
+finaldef$`Defense.CMPPCT` = totaldef$Defense.Passing.Cmp/totaldef$Defense.Passing.Att
+
+finaloff$`Offense.Passing.YPG` = totaloff$`Offense.Passing.Yds`/totaloff$`Offense..G`
+finaldef$`Defense.Passing.YPG` = totaldef$`Defense.Passing.Yds`/totaldef$`Defense..G`
+
+finaloff$`Offense.Passing.IPG` = totaloff$`Offense.Passing.Int`/totaloff$`Offense..G`
+finaldef$`Defense.Passing.IPG` = totaldef$`Defense.Passing.Int`/totaldef$`Defense..G`
+
+finaloff$`Offense.Passing.NYPA` = totaloff$Offense.Passing.NY.A
+finaldef$`Defense.Passing.NYPA` = totaldef$Defense.Passing.NY.A
+
+finaloff$`Offense.Passing.1stDPG` = totaloff$`Offense.Passing.1stD`/totaloff$`Offense..G`
+finaldef$`Defense.Passing.1stDPG` = totaldef$`Defense.Passing.1stD`/totaldef$`Defense..G`
+
+finaloff$`Offense.Rushing.AttPG` = totaloff$`Offense.Rushing.Att`/totaloff$`Offense..G`
+finaldef$`Defense.Rushing.AttPG` = totaldef$`Defense.Rushing.Att`/totaldef$`Defense..G`
+
+finaloff$`Offense.Rushing.YPG` = totaloff$`Offense.Rushing.Yds`/totaloff$`Offense..G`
+finaldef$`Defense.Rushing.YPG` = totaldef$`Defense.Rushing.Yds`/totaldef$`Defense..G`
+
+
+finaloff$`Offense.Rushing.TDPG` = totaloff$`Offense.Rushing.TD`/totaloff$`Offense..G`
+finaldef$`Defense.Rushing.TDPG` = totaldef$`Defense.Rushing.TD`/totaldef$`Defense..G`
+
+finaloff$`Offense.Rushing.Y.A` = totaloff$`Offense.Rushing.Y.A`
+finaldef$`Defense.Rushing.Y.A` = totaldef$`Defense.Rushing.Y.A`
+
+
+finaloff$`Offense.Rushing.1stDPG` = totaloff$`Offense.Rushing.1stD`/totaloff$`Offense..G`
+finaldef$`Defense.Rushing.1stDPG` = totaldef$`Defense.Rushing.1stD`/totaldef$`Defense..G`
+
+
+finaloff$`Offense.Penalties.PenPG` = totaloff$`Offense.Penalties.Pen`/totaloff$`Offense..G`
+finaldef$`Defense.Penalties.PenPG` = totaldef$`Defense.Penalties.Pen`/totaldef$`Defense..G`
+
+finaloff$`Offense.Penalties.YPG` = totaloff$`Offense.Penalties.Yds`/totaloff$`Offense..G`
+finaldef$`Defense.Penalties.YPG` = totaldef$`Defense.Penalties.Yds`/totaldef$`Defense..G`
+
+
+finaloff$`Offense.Penalties.1stPen` = totaloff$`Offense.Penalties.1stPy`/totaloff$`Offense..G`
+finaldef$`Defense.Penalties.1stPen` = totaldef$`Defense.Penalties.1stPy`/totaldef$`Defense..G`
+#not including offense pen yds b/c it is highly correlated with offense pen ypg
+
+finaloff$`Offense.ScPct` = totaloff$`Offense..Sc.`
+finaldef$`Defense.ScPct` = totaldef$`Defense..Sc.`
+
+finaloff$`Offense.TOPct` = totaloff$`Offense..TO.`
+finaldef$`Defense.TOPct` = totaldef$`Defense..TO.`
+
+#remove EXP because it does not make sense and stuff.
+
+
+finaloff$`Offense.Red.Zone.Chances` = totaloff$`Offense.Red.Zone.Chances`
+finaldef$`Defense.Red.Zone.Chances` = totaldef$`Defense.Red.Zone.Chances`
+
+finaloff$`Time.of.Possession` = totaloff$`Time.of.Possession`
+
+```
+
+
+
+
+```{r}
+
+
+
+
+
+totaloffhome = finaloff %>% rename_with( ~ paste0("Home ", .x))
+totaloffaway = finaloff %>% rename_with( ~ paste0("Away ", .x))
+totaldefhome = finaldef %>% rename_with( ~ paste0("Home ", .x))
+totaldefaway = finaldef %>% rename_with( ~ paste0("Away ", .x))
+
+newresults = merge(game_results,totaloffhome,by.x = c("team_home","Year"),by.y = c("Home Team","Home Year"))
+newresults = merge(newresults,totaldefhome,by.x = c("team_home","Year"),by.y = c("Home Team","Home Year"))
+newresults = merge(newresults,totaloffaway,by.x = c("team_away","Year"),by.y = c("Away Team","Away Year"))
+newresults = merge(newresults,totaldefaway,by.x = c("team_away","Year"),by.y = c("Away Team","Away Year"))
+final_results = newresults[-c(18)]
+```
+
+
+
+```{r}
+
+
+#final_results =mutate_all(final_results[],function(x) as.numeric(as.character(x)))
+
+final_results <- as.data.frame(lapply(final_results, function(col) {
+  if (suppressWarnings(all(!is.na(as.numeric(as.character(col)))))) {
+    as.numeric(as.character(col))
+  } else {
+    col
+  }
+}))
+
+
+
+p2 = final_results%>% group_by(`Year`, `team_home`) %>%
+  summarise_at(vars(`Away.Defense.PPG`), list(name=mean)) %>%
+  rename(`Home.Average` = name)
+
+p3 = final_results%>%
+  group_by(`Year`, `team_away`) %>%
+  summarise_at(vars(`Home.Defense.PPG`), list(name=mean)) %>%
+  rename(`Away.Average` = name)
+
+p2$`Away.Average` = p3$`Away.Average`
+
+p2 = p2 %>%   mutate(`Home.Points.Allowed.By.Opposing.Defense` = (`Home.Average` + `Away.Average`)/2)
+p2 = p2[-c(3,4)]
+
+
+final_results = merge(final_results,p2)
+colnames(p2)[3] = "Away.Points.Allowed.By.Opposing.Defense"
+
+final_results = merge(final_results,p2,by.x=c("team_away","Year"),by.y = c("team_home","Year"))
+
+
+
+
+# read in created data
+
+
+
+#final_results = final_results[-c(46,73,100)]
+
+#final_results = merge(final_results,offense_red_zone,by,x = "")
+
+
+```
+
+```{r}
+
+
+#model for home score
+predictor_subset = final_results[c(7,8,18:113)]
+
+predictor_subset$total = predictor_subset$score_home + predictor_subset$score_away
+predictor_subset$spread = -abs(predictor_subset$score_home - predictor_subset$score_away)
+
+
+
+
+
+
+homescore = lm(score_home~.,data = predictor_subset[-c(2)])
+
+summary(homescore)
+
+
+#model for away score
+
+awayscore = lm(score_away~.,data = predictor_subset[-c(1)])
+
+summary(awayscore)
+
+```
+Note that the `echo = FALSE` parameter was added to the code chunk to prevent printing of the R code that generated the plot.
+
+
+
+```{r}
+#check for multicolinearity
+bestcorr = predictor_subset %>% cor() %>% as_cordf() %>% stretch() %>% arrange(r)
+bestcorr = bestcorr[nrow(bestcorr):1,]
+bestcorr[complete.cases(bestcorr),]
+
+```
+
+```{r}
+
+predictor_subset 
+
+bestcorr = predictor_subset %>% cor() %>% as_cordf() %>% stretch() %>% arrange(r)
+bestcorr = bestcorr[nrow(bestcorr):1,]
+bestcorr[complete.cases(bestcorr),]
+
+
+```
+
+```{r}
+
+
+homescore_empty = lm(score_home~1,data = predictor_subset[-c(2)])
+homescore_all = lm(score_home~.,data = predictor_subset[-c(2)])
+
+
+homescore_model = stepAIC(homescore,trace=TRUE,direction = "forward",scope=list(lower = homescore_empty, upper = homescore_all))
+
+summary(homescore_model)
+#need to do vif,heteroskedasticity,add some categorical variables,add new varaibles
+```
+
+```{r}
+
+
+
+
+```
+
+
+
